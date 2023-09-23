@@ -799,6 +799,12 @@ impl Builder {
         self
     }
 
+    /// Sets the header table size
+    pub fn set_header_table_size(&mut self, size: u32) -> &mut Self {
+        self.settings.set_header_table_size(Some(size));
+        self
+    }
+
     /// Sets the window update increment
     pub fn set_window_update_frame(&mut self, size: u32) -> &mut Self {
         self.window_update = Some(size);
