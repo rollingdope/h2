@@ -1,9 +1,11 @@
+use bytes::{BufMut, BytesMut};
+
 use crate::frame::*;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Priority {
-    stream_id: StreamId,
-    dependency: StreamDependency,
+    pub stream_id: StreamId,
+    pub dependency: StreamDependency,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -21,6 +23,16 @@ pub struct StreamDependency {
 }
 
 impl Priority {
+    pub fn encode(&self, dst: &mut BytesMut) {
+        let head = Head::new(Kind::Priority, 0x02, StreamId::from(1));
+
+        head.encode(5, dst);
+
+        dst.put_u8(self.dependency.is_exclusive as u8);
+        dst.put_u32(self.dependency.dependency_id.into());
+        dst.put_u8(self.dependency.weight);
+    }
+
     pub fn load(head: Head, payload: &[u8]) -> Result<Self, Error> {
         let dependency = StreamDependency::load(payload)?;
 

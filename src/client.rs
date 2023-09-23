@@ -135,10 +135,13 @@
 //! [`Builder`]: struct.Builder.html
 //! [`Error`]: ../struct.Error.html
 
-use crate::codec::{Codec, SendError, UserError};
 use crate::ext::Protocol;
 use crate::frame::{Headers, Pseudo, Reason, Settings, StreamId};
 use crate::proto::{self, Error};
+use crate::{
+    codec::{Codec, SendError, UserError},
+    frame,
+};
 use crate::{FlowControl, PingPong, RecvStream, SendStream};
 
 use bytes::{Buf, Bytes};
@@ -319,6 +322,9 @@ pub struct Builder {
 
     /// Initial target window size for new connections.
     initial_target_connection_window_size: Option<u32>,
+
+    // Window Update frame
+    window_update: Option<u32>,
 
     /// Maximum amount of bytes to "buffer" for writing per stream.
     max_send_buffer_size: usize,
@@ -644,6 +650,7 @@ impl Builder {
             initial_target_connection_window_size: None,
             initial_max_send_streams: usize::MAX,
             settings: Default::default(),
+            window_update: None,
             stream_id: 1.into(),
         }
     }
@@ -789,6 +796,12 @@ impl Builder {
     /// ```
     pub fn max_header_list_size(&mut self, max: u32) -> &mut Self {
         self.settings.set_max_header_list_size(Some(max));
+        self
+    }
+
+    /// Sets the window update increment
+    pub fn set_window_update_frame(&mut self, size: u32) -> &mut Self {
+        self.window_update = Some(size);
         self
     }
 
@@ -1251,6 +1264,13 @@ where
             .buffer(builder.settings.clone().into())
             .expect("invalid SETTINGS frame");
 
+        // Send initial window update frame
+        if let Some(window_update) = builder.window_update {
+            codec
+                .buffer(frame::WindowUpdate::new(StreamId::ZERO, window_update).into())
+                .expect("invalid WINDOW_UPDATE frame");
+        }
+
         let inner = proto::Connection::new(
             codec,
             proto::Config {
@@ -1263,6 +1283,7 @@ where
                 settings: builder.settings.clone(),
             },
         );
+
         let send_request = SendRequest {
             inner: inner.streams().clone(),
             pending: None,
